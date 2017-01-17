@@ -3,7 +3,9 @@
 // Import the module and reference it with the alias vscode in your code below
 import { window, commands, Disposable, ExtensionContext, StatusBarAlignment, StatusBarItem, TextDocument, languages } from 'vscode';
 
-import { Formatter, PHPDocumentRangeFormattingEditProvider } from './formatter';
+import { DOCUMENT_FILTER } from './document_filter';
+
+import { Formatter, PHPDocumentRangeFormattingEditProvider} from './formatter';
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -13,8 +15,8 @@ export function activate(context: ExtensionContext) {
     // This line of code will only be executed once when your extension is activated
     console.log('Congratulations, your extension "WordCount" is now active!');
 
-    // let wordCounter = new WordCounter();
-    // let controller = new WordCounterController(wordCounter);
+    let wordCounter = new WordCounter();
+    let controller = new WordCounterController(wordCounter);
     // The command has been defined in the package.json file
     // Now provide the implementation of the command with  registerCommand
     // The commandId parameter must match the command field in package.json
@@ -23,6 +25,8 @@ export function activate(context: ExtensionContext) {
 
         // Display a message box to the user
         window.showInformationMessage('Hello World!');
+        let formatter: Formatter = new Formatter();
+        formatter.formatDocument();
 
         // wordCounter.updateWordCount();
 
@@ -43,9 +47,13 @@ export function activate(context: ExtensionContext) {
     //     formatter.formatDocument(window.activeTextEditor.document);
     // });
 
-    // context.subscriptions.push(controller);
+    context.subscriptions.push(controller);
     context.subscriptions.push(disposable);
     // context.subscriptions.push(format);
+
+    let formattingProvider: Disposable =
+        languages.registerDocumentRangeFormattingEditProvider(DOCUMENT_FILTER, new PHPDocumentRangeFormattingEditProvider());
+    context.subscriptions.push(formattingProvider);
 }
 
 class WordCounter {
