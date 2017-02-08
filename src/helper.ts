@@ -51,7 +51,7 @@ export class Helper {
      * @param message The object to log (anything that console.log can handle).
      */
     public static logDebug(message: any): void {
-        // if (workspace.getConfiguration('phpformatter').get('logging', false) === true) {
+        // if (workspace.getConfiguration('delpan-phpformatter').get('logging', false) === true) {
         //     console.log('PHPFormatter: ' + message);
         // }
     }

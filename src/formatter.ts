@@ -3,9 +3,9 @@ import { workspace, window, Disposable, Command, ExtensionContext, Position, Ran
 import { exec, ChildProcess } from 'child_process';
 import * as path from 'path';
 
-// let open = require('../node_modules/open');
-// let tmp = require('../node_modules/tmp');
 let fs = require('fs');
+
+let tmpDir = require('os-tmpdir')
 // import * as fs from 'fs'; // Can't use this because the typed version does not support a property we need. So we're using the require() method instead.
 
 import { Helper } from './helper';
@@ -20,14 +20,7 @@ export class Formatter {
      * @param selection Range to format. If there is no selection, or the selection is empty, the whole document will be formatted.
      */
     public formatDocument() {
-        this.getTextEdits().then((textEdits) => {
-            console.log(textEdits);
-            textEdits.forEach((te) => {
-                window.activeTextEditor.edit((textEditorEdit: TextEditorEdit) => {
-                    textEditorEdit.replace(te.range, te.newText);
-                });
-            });
-        });
+        this.getTextEdits();
     }
 
     /**
@@ -37,29 +30,15 @@ export class Formatter {
      * @param selection Range to format. If there is no selection, or the selection is empty, the whole document will be formatted.
      * @return Promise with an array of TextEdit.
      */
-    public getTextEdits(selection?: Range): Thenable<TextEdit[]> {
+    public getTextEdits(): Thenable<TextEdit[]> {
         return new Promise((resolve, reject) => {
             let document: any = window.activeTextEditor.document;
 
             // Makes our code a little more readable by extracting the config properties into their own variables.
-            // let config = workspace.getConfiguration('phpformatter');
-            // let _pharPath: string = config.get('pharPath', '');
-            // let _phpPath: string = config.get('phpPath', '');
-            // let _composer: boolean = config.get('composer', false);
-            // let _arguments: Array<string> = config.get('arguments', []);
-            // let _level: string = config.get('level', '');
-            // let _fixers: string = config.get('fixers', '');
-            // let _additionalExtensions: Array<string> = config.get('additionalExtensions', []);
-            // let _notifications: boolean = config.get('notifications', false);
-
-            let _pharPath: string = "php-cs-fixer";
-            let _phpPath: string = "php";
-            let _composer: boolean = false;
-            let _arguments: Array<string> = ['--level=psr2'];
-            let _level: string = '';
-            let _fixers: string = '';
-            let _additionalExtensions: Array<string> = ['php'];
-            let _notifications: boolean = false;
+            let config = workspace.getConfiguration('delpan-phpformatter');
+            let _pharPath: string = config.get('pharPath', '');
+            let _arguments: Array<string> = config.get('arguments', []);
+            let _additionalExtensions: Array<string> = config.get('additionalExtensions', []);
 
             if (document.languageId !== 'php') {
                 if (Array.isArray(_additionalExtensions) && _additionalExtensions.indexOf(document.languageId) != -1) {
@@ -71,8 +50,6 @@ export class Formatter {
                 }
             }
 
-            // tmp.setGracefulCleanup(); // Temp files should be cleaned up afterwards
-
             // Variable args will represent the command string.
             // All the arguments for the command will be appended to the array,
             // so they can later be joined and delimited by spaces more easily.
@@ -82,62 +59,41 @@ export class Formatter {
             // Now let's handle anything related to temp files.
             // TODO: Use document.lineCount to warn user about possibly crashing the editor because of having to write the file contents
             Helper.logDebug('Creating temp file.');
-console.log(selection);
+
+            var editor = window.activeTextEditor;
+            if (editor) {
+                var selection = editor.selection;
+            }
+
+            let prependedPhpTag: boolean = false; // Whether the to-be-fixed content has a '<?php' tag prepended or not. 
+            let format_whitespace = 0;
             if (Helper.selectionNotEmpty(selection)) {
+                format_whitespace = selection.start.character;
+                let current_line = selection.start.line;
+
+                do {
+                    let line_info = document.lineAt(current_line);
+                    if (line_info.isEmptyOrWhitespace !== false && line_info.text.indexOf('<?') === -1) {
+                        break;
+                    }
+
+                    current_line--;
+                } while (current_line > 0);
+
                 let selectionText: string = document.getText(selection);
 
                 // If the selected text does not have a PHP opening tag, then
                 // prepend one manually. Otherwise PHP-CS-Fixer will not do
                 // anything at all.
+
                 if (selectionText.indexOf('<?') == -1) {
                     selectionText = '<?php\n' + selectionText;
+                    prependedPhpTag = true;
                 }
-console.log(selectionText);
-                filePath = "/tmp/delpan-phpformat";
-                let temp_file: any = fs.writeFile(filePath, selectionText, function (err) {
-                    if (err) throw err;
-                    console.log('It\'s saved!'); //文件被保存
-                });
+
+                filePath = tmpDir() + "/phpfmt-phpformat";
+                fs.writeFileSync(filePath, selectionText, { encoding: 'utf8' });
             }
-            return resolve(filePath);
-
-            // let tempFile: any = tmp.fileSync({ prefix: 'phpfmt-' }); // Create temp file itself (empty).
-            // let tempFileFd: any = tempFile.fd; // File descriptor of temp file
-            // let prependedPhpTag: boolean = false; // Whether the to-be-fixed content has a '<?php' tag prepended or not. This is important, because if there is not such a tag present, we'll have to prepend it ourselves, otherwise PHP-CS-Fixer won't do anything.
-            // let contentToFix: string = document.getText(); // The content that should be fixed. If there is a selection, this will be replaced with the selected text.
-            // filePath = tempFile.name;
-
-            // Helper.logDebug('Tempfile fd: ' + tempFile.fd);
-            // Helper.logDebug('Tempfile name: ' + filePath);
-            // Helper.logDebug('Writing current document content to temp file. Until VSCode will have a way of querying encoding, utf8 will be used for reading and writing.');
-
-            // First, we'll assume there is no selection, and just select the whole document.
-            // Determine the active document's end position (last line, last character).
-            // let documentEndPosition: Position =
-            //     new Position(document.lineCount - 1,
-            //         document.lineAt(new Position(document.lineCount - 1, 0)).range.end.character);
-            // let editRange: Range = new Range(new Position(0, 0), documentEndPosition);
-
-            // // If the user made a selection, then only copy the selected text.
-            // // Also, save that range so we will only replace that part of code after formatting.
-            // if (Helper.selectionNotEmpty(selection)) {
-            //     let selectionText = document.getText(selection);
-            //     editRange = selection;
-
-            //     // If the selected text does not have a PHP opening tag, then
-            //     // prepend one manually. Otherwise PHP-CS-Fixer will not do
-            //     // anything at all.
-            //     if (selectionText.indexOf('<?') == -1) {
-            //         Helper.logDebug('No PHP opening tag found, prepending <?php to selection');
-            //         selectionText = '<?php\n' + selectionText;
-            //         prependedPhpTag = true;
-            //     }
-
-            //     contentToFix = selectionText;
-            // }
-
-            // // Write the relevant content to the temp file
-            // fs.writeFileSync(tempFileFd, contentToFix, { encoding: 'utf8' });
 
             // Make sure to put double quotes around our path, otherwise the command
             // (Symfony, actually) will fail when it encounters paths with spaces in them.
@@ -145,37 +101,13 @@ console.log(selectionText);
 
             args.push(escapedPath);
 
-            // phpformatter.arguments will only be used if neither phpformatter.level
-            // nor phpformatter.fixers are set.
-            // This will be here until phpformatter.level and phpformatter.fixers are
-            // removed from the plugin in a future update.
-            if (_level) args.push('--level=' + _level);
-            if (_fixers) args.push('--fixers=' + _fixers);
-
-            if (_level == '' && _fixers == '') {
-                args = args.concat(_arguments);
-            }
-
             let fixCommand: string = '';
-            if (_composer) {
-                // If PHP-CS-Fixer was installed using Composer, and it was added to the PATH,
-                // then we don't have to prepend the command with 'php' or point to the .phar file.
-                fixCommand = 'php-cs-fixer ' + args.join(' ');
-            } else if (_pharPath) {
-                // If PHP-CS-Fixer was installed manually, then we will have to provide the full
-                // .phar file path. And optionally include the php path as well.
-                args.unshift(Helper.enquote(_pharPath));
-                fixCommand = Helper.enquote(_phpPath) + ' ' + args.join(' ');
-            } else {
-                let message: string = 'Neither a pharPath or use of Composer was specified. Aborting...';
-                if (_notifications) window.showInformationMessage(message);
 
-                Helper.logDebug(message);
-                return reject(message);
-            }
+            // If PHP-CS-Fixer was installed using Composer, and it was added to the PATH,
+            // then we don't have to prepend the command with 'php' or point to the .phar file.
+            fixCommand = 'php-cs-fixer ' + args.join(' ');
 
             Helper.logDebug('Full command being executed: ' + fixCommand);
-
             let stdout: string = '';
             let stderr: string = '';
             let execResult = exec(fixCommand);
@@ -201,47 +133,29 @@ console.log(selectionText);
                     Helper.logDebug(stderr);
                 }
 
-                // Read the content from the temp file. Pass the encoding as utf8,
-                // because we need it to return a string (fs would return buffer
-                // otherwise, see https://nodejs.org/docs/latest/api/fs.html#fs_fs_readfilesync_file_options)
-                // TODO: Detect current document file encoding so we don't have to
-                // assume utf8.
-                Helper.logDebug('Reading temp file content.');
+                if (Helper.selectionNotEmpty(selection)) {
+                    // This var will hold the content of the temp file. Every chunk that is read from the ReadStream
+                    // will be appended to this var.
+                    let fixedContent: string = '';
+                    fixedContent = fs.readFileSync(filePath, 'utf8');
 
-                // This var will hold the content of the temp file. Every chunk that is read from the ReadStream
-                // will be appended to this var.
-                let fixedContent: string = '';
-
-                // The reason we are using fs.createReadStream() instead of simply using fs.readFileSync(),
-                // is that the latter does not allow you to set the file descriptor cursor position manually.
-                // Doing so is crucial, because otherwise only parts of the file will be read in many cases.
-                let readStream = fs.createReadStream(filePath, { fd: tempFileFd, start: 0 });
-
-                // Read the data from the file and append it to the string builder.
-                readStream.on('data', (chunk: string) => {
-                    fixedContent += chunk;
-                });
-
-                // When EOF is reached, copy the results back to the original file.
-                readStream.on('end', () => {
-                    // If we prepended a PHP opening tag manually, we'll have to remove
-                    // it now, before we overwrite our document.
                     if (prependedPhpTag) {
                         fixedContent = fixedContent.substring(6);
-                        Helper.logDebug('Removed the prepended PHP opening tag from the formatted text.');
                     }
 
-                    let numSelectedLines: number = Helper.getNumSelectedLines(editRange, document);
-                    Helper.logDebug('Replacing editor content with formatted code.');
-                    Helper.logDebug('Document successfully formatted (' + numSelectedLines + ' lines).');
+                    if (format_whitespace) {
+                        let content_arr = fixedContent.split("\n");
+                        // content_arr.shift();
+                        content_arr.pop();
+                        fixedContent = new Array(format_whitespace + 1).join(' ') + content_arr.join("\n" + new Array(format_whitespace + 1).join(' '));
+                    }
 
-                    let textEdits: TextEdit[] = [];
-                    textEdits.push(TextEdit.replace(editRange, fixedContent));
-                    return resolve(textEdits);
+                    window.activeTextEditor.edit((textEditorEdit: TextEditorEdit) => {
+                        textEditorEdit.replace(selection, fixedContent);
+                    });
 
-                    // This does not work for some reason. Keeping this here as a reminder.
-                    // tempFile.removeCallback();
-                });
+                    return resolve(TextEdit);
+                }
             });
         });
     }
@@ -251,12 +165,10 @@ export class PHPDocumentRangeFormattingEditProvider implements DocumentRangeForm
     private formatter: Formatter;
 
     constructor() {
-        console.log("cccccc");
         this.formatter = new Formatter();
     }
 
     public provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): Thenable<TextEdit[]> {
-        console.log("aaa:");console.log(range);
-        return this.formatter.getTextEdits(range);
+        return this.formatter.getTextEdits();
     }
 }

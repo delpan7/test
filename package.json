@@ -11,17 +11,45 @@
         "Other"
     ],
     "activationEvents": [
-        "onLanguage:markdown",
-        "onCommand:extension.sayHello"
+        "onLanguage:php",
+        "onCommand:delpan.phpFormat"
     ],
     "main": "./out/src/extension",
     "contributes": {
         "commands": [
             {
-                "command": "extension.sayHello",
-                "title": "Hello World"
+                "command": "delpan.phpFormat",
+                "title": "PHP Format"
             }
-        ]
+        ],
+        "configuration": {
+            "type": "object",
+            "title": "PHP Formatter Settings",
+            "properties": {
+                "delpan-phpformatter.pharPath": {
+                    "type": "string",
+                    "default": "php-cs-fixer",
+                    "description": "Should point to php-cs-fixer.phar file, if you have installed this manually (without Composer). Should include .phar extension."
+                },
+                "delpan-phpformatter.arguments": {
+                    "type": "array",
+                    "default": [
+                        "--rules=@Symfony"
+                    ],
+                    "description": "Add arguments to the executed fix command, like so: ['--level=psr2', '--fixers=linefeed,short_tag,indentation']."
+                },
+                "delpan-phpformatter.additionalExtensions": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Which additional file extensions, besides PHP, should be fixed as well. E.g. inc, without the leading dot. For this to work you'll also have to configure your VSCode files.associations settings (https://code.visualstudio.com/Docs/languages/overview#_common-questions)."
+                },
+                "delpan-phpformatter.logging": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "If true, the extension will log all sorts of (debug) info to the console. Useful for troubleshooting."
+                }
+            }
+        }
     },
     "scripts": {
         "vscode:prepublish": "tsc -p ./",
@@ -30,8 +58,7 @@
         "test": "node ./node_modules/vscode/bin/test"
     },
     "dependencies": {
-        "open": "~0.0.5",
-        "tmp": "0.0.28"
+        "os-tmpdir":"^1.0.0"
     },
     "devDependencies": {
         "typescript": "^2.0.3",
